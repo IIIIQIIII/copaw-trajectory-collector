@@ -55,6 +55,23 @@ Desktop.ini
 # Generated trajectory outputs (may contain sensitive data paths)
 trajectory_output/
 trajectory_output_v2/
+copaw-trajectories/
+test-stepfun-*/
+*-output/
+*-adapted/
+
+# Checkpoint files (contain dataset processing state)
+checkpoint*.json
+*-checkpoint*.json
+
+# Batch collection logs
+stepfun-batch.log
+batch-*.log
+monitor_batch.sh
+
+# Test files with potential secrets
+test_*.ts
+test_*.tsx
 
 # Python virtual environments
 .venv-analysis/
@@ -69,3 +86,7 @@ test_data/workspace/
 test_data/*.py
 
 # Keep test_data/sales_data.csv as example
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/

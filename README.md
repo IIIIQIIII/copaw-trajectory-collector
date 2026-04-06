@@ -13,6 +13,8 @@ This tool collects agent trajectories in the CoPaw-Flash format for fine-tuning 
 - **OpenAI-Compatible API**: Works with OpenRouter, DeepSeek, Ollama, and other providers
 - **Real Tool Execution**: Bash, Read, Write, Glob, Grep, Edit tools with actual execution
 - **Python Data Analysis**: Pre-configured uv venv with pandas, numpy, matplotlib, seaborn
+- **Batch Collection**: Process multiple datasets with parallel workers and API key rotation
+- **Multi-Model Support**: Adapters for different LLM tool call formats (JSON, XML)
 
 ## Quick Start
 
@@ -30,10 +32,21 @@ bun install
 
 # Setup Python analysis environment
 uv venv .venv-analysis --python 3.12
-uv pip install pandas numpy matplotlib seaborn scipy --python .venv-analysis/bin/python
+uv pip install pandas numpy matplotlib seaborn scipy scikit-learn --python .venv-analysis/bin/python
 ```
 
-### Run Trajectory Collection
+### Environment Setup
+
+Create a `.env` file with your API keys:
+
+```bash
+# .env
+OPENROUTER_API_KEYS=sk-or-v1-xxx,sk-or-v1-yyy,sk-or-v1-zzz
+```
+
+> **IMPORTANT**: Never commit the `.env` file to git. It contains sensitive API keys.
+
+### Run Single Trajectory Collection
 
 ```bash
 CLAUDE_CODE_USE_OPENAI=1 \
@@ -47,16 +60,53 @@ bun run collect \
   --max-turns 3
 ```
 
-### Command Line Options
+## Batch Collection
+
+For collecting trajectories from multiple datasets at scale.
+
+### Batch Collection with Qwen (JSON format)
+
+```bash
+# Load environment variables and run
+source .env
+bun run src/entrypoints/batchCollect.tsx \
+  --kaggle-dir ./kaggle-top1000 \
+  --output-dir ./copaw-trajectories \
+  --max-turns 3 \
+  --checkpoint ./checkpoint.json
+```
+
+### Batch Collection with Stepfun (XML format)
+
+Stepfun uses a different tool call format (XML-like). Use the dedicated adapter:
+
+```bash
+source .env
+bun run src/entrypoints/batchCollectStepfun.tsx \
+  --kaggle-dir ./kaggle-top1000 \
+  --output-dir ./copaw-trajectories-stepfun \
+  --max-turns 2 \
+  --checkpoint ./checkpoint-stepfun.json
+```
+
+### Batch Collection Features
+
+- **Parallel Workers**: Multiple API keys run concurrent workers
+- **Checkpoint/Resume**: Automatically saves progress, can resume after interruption
+- **API Key Rotation**: Distributes load across multiple API keys to avoid rate limits
+- **Progress Tracking**: Real-time progress and statistics
+
+### Command Line Options (Batch)
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--dataset-dir` | Directory containing data files (CSV, JSON, etc.) | `./data` |
-| `--dataset-title` | Title shown to the AI analyst | `Dataset` |
-| `--dataset-desc` | Description of the dataset | `A dataset for analysis` |
-| `--output-dir` | Directory for output trajectories | `./trajectory_output` |
+| `--kaggle-dir` | Directory containing dataset folders | `./kaggle-top1000` |
+| `--output-dir` | Directory for output trajectories | `./copaw-trajectories` |
 | `--max-turns` | Maximum conversation turns | `3` |
-| `--workspace-dir` | Directory for generated scripts/charts | `<dataset-dir>/workspace` |
+| `--checkpoint` | Checkpoint file for resume | `./checkpoint.json` |
+| `--start-index` | Start from specific index | `0` |
+| `--limit` | Limit number of datasets (0=all) | `0` |
+| `--delay` | Delay between datasets (ms) | `5000` |
 
 ## Output Format
 
@@ -72,11 +122,21 @@ bun run collect \
 ]}
 ```
 
-### Tool Call Format (CoPaw-Flash Compatible)
+### Tool Call Formats
 
+**JSON Format (Qwen, GPT, etc.)**
 ```xml
 <tool_call>
 {"name": "Bash", "arguments": {"command": "python analysis.py"}}
+</tool_call>
+```
+
+**XML Format (Stepfun)**
+```xml
+<tool_call>
+<function=Bash>
+<parameter=command>python analysis.py</parameter>
+</function>
 </tool_call>
 ```
 
@@ -127,7 +187,7 @@ Analysis complete. Total revenue: $162,270.15
 
 ## Performance
 
-Based on test runs with `qwen/qwen3.6-plus:free`:
+### Qwen (qwen/qwen3.6-plus:free)
 
 | Metric | Value |
 |--------|-------|
@@ -136,6 +196,18 @@ Based on test runs with `qwen/qwen3.6-plus:free`:
 | Output tokens | ~5,000 |
 | Messages generated | ~20 |
 | Tool calls | ~10-15 |
+| Success rate | ~52% |
+
+### Stepfun (stepfun/step-3.5-flash:free)
+
+| Metric | Value |
+|--------|-------|
+| Time per trajectory | ~1-2 minutes |
+| Input tokens | ~60,000 |
+| Output tokens | ~6,000 |
+| Messages generated | ~25 |
+| Tool calls | ~10-12 |
+| Success rate | ~99% |
 
 ## Available Tools
 
@@ -154,17 +226,33 @@ Based on test runs with `qwen/qwen3.6-plus:free`:
 copaw-trajectory-collector/
 ├── src/
 │   ├── entrypoints/
-│   │   └── trajectoryCollect.tsx   # Main entry point
+│   │   ├── trajectoryCollect.tsx   # Single trajectory collection
+│   │   ├── batchCollect.tsx        # Batch collection (Qwen/JSON)
+│   │   └── batchCollectStepfun.tsx # Batch collection (Stepfun/XML)
 │   └── trajectory/
 │       ├── collector.ts            # Trajectory recording
-│       └── dualAgent.ts            # Dual-AI coordination
+│       ├── dualAgent.ts            # Dual-AI coordination
+│       └── stepfunAdapter.ts       # Stepfun XML format adapter
 ├── test_data/                      # Sample datasets
 │   └── sales_data.csv
-├── trajectory_output/              # Generated trajectories
 ├── .venv-analysis/                 # Python environment
 ├── docs/                           # Documentation
+├── .env                            # API keys (DO NOT COMMIT)
 └── README.md
 ```
+
+## Model Adapters
+
+### Adding Support for New Models
+
+If a model uses a different tool call format, create an adapter in `src/trajectory/`:
+
+1. Implement parser function for the tool call format
+2. Implement `hasToolCalls()` detection function
+3. Create system prompt generator with tool definitions
+4. Create dedicated batch collection entry point
+
+See `stepfunAdapter.ts` as an example.
 
 ## Documentation
 
@@ -173,6 +261,13 @@ See the `docs/` directory for detailed documentation:
 - [Data Collection Guide](docs/data-collection-guide.md) - How to collect trajectories
 - [Output Format Specification](docs/output-format.md) - Dataset format details
 - [API Configuration](docs/api-configuration.md) - Setting up different LLM providers
+
+## HuggingFace Datasets
+
+Collected trajectories are available on HuggingFace:
+
+- [copaw-data-analysis-trajectories](https://huggingface.co/datasets/LocoreMind/copaw-data-analysis-trajectories) - Qwen model trajectories
+- [copaw-trajectories-stepfun](https://huggingface.co/datasets/LocoreMind/copaw-trajectories-stepfun) - Stepfun model trajectories
 
 ## Based On
 
@@ -184,5 +279,5 @@ MIT License - See LICENSE file for details.
 
 ---
 
-**Version:** 1.0.0
-**Last Updated:** 2026-04-05
+**Version:** 1.1.0
+**Last Updated:** 2026-04-06

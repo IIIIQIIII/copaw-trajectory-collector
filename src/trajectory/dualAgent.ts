@@ -23,7 +23,6 @@ export interface DualAgentConfig {
 
 export interface UserAgentPrompt {
   systemPrompt: string
-  initialQuestion: string
 }
 
 /**
@@ -34,7 +33,10 @@ export function getUserAgentPrompt(
   datasetDesc: string,
 ): UserAgentPrompt {
   const systemPrompt = `You are simulating a data science beginner who works at a company.
-Your manager asked you to analyze a dataset but you have NO coding skills.
+Your manager asked you to analyze a dataset called "${datasetTitle}".
+Description: ${datasetDesc}
+
+You have NO coding skills and need help from a data analyst.
 You communicate in natural, casual language.
 
 Your behavior:
@@ -45,14 +47,44 @@ Your behavior:
 - You should NOT write or suggest any code
 - Keep each message concise (2-3 sentences max)
 - Output ONLY your question text, nothing else
+- Be creative and natural - don't use generic phrases
+- Your questions should reflect genuine curiosity about THIS specific dataset`
 
-Dataset info:
-- Name: ${datasetTitle}
-- Description: ${datasetDesc}`
+  return { systemPrompt }
+}
 
-  const initialQuestion = `Hi! I need to analyze the "${datasetTitle}" dataset. Can you help me understand what's in it and find some interesting insights?`
+/**
+ * Generate the initial question using the User Agent AI.
+ */
+export async function generateInitialQuestion(
+  config: DualAgentConfig,
+  systemPrompt: string,
+): Promise<string> {
+  const response = await fetch(`${config.baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${config.apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: config.model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: 'Start the conversation by asking the data analyst your first question about this dataset. Be natural and specific to this dataset.' },
+      ],
+      stream: false,
+    }),
+  })
 
-  return { systemPrompt, initialQuestion }
+  if (!response.ok) {
+    const error = await response.text()
+    throw new Error(`User Agent initial question error: ${response.status} - ${error}`)
+  }
+
+  const data = await response.json() as {
+    choices: Array<{ message: { content: string } }>
+  }
+  return extractUserQuestion(data.choices[0]?.message?.content || '')
 }
 
 /**
@@ -158,6 +190,7 @@ export function extractUserQuestion(response: string): string {
 
 export default {
   getUserAgentPrompt,
+  generateInitialQuestion,
   getAnalystSystemPromptExtension,
   parseAssistantResponse,
   callUserAgent,

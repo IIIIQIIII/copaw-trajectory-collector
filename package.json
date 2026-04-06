@@ -9,6 +9,7 @@
   "scripts": {
     "start": "bun run --preload ./stubs/globals.ts ./src/entrypoints/cli.tsx",
     "collect": "bun run src/entrypoints/trajectoryCollect.tsx",
+    "batch": "bun run src/entrypoints/batchCollect.tsx",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

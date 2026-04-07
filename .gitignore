@@ -1,7 +1,9 @@
 # Dependencies
 node_modules/
 bun.lockb
-*.lock
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
 
 # Build outputs
 dist/

@@ -61,6 +61,11 @@ copaw-trajectories/
 test-stepfun-*/
 *-output/
 *-adapted/
+local-trajectories/
+autonomous-trajectories/
+full-lora-trajectories/
+verification-test/
+qwen-quick-test/
 
 # Checkpoint files (contain dataset processing state)
 checkpoint*.json
@@ -70,10 +75,12 @@ checkpoint*.json
 stepfun-batch.log
 batch-*.log
 monitor_batch.sh
+monitor_progress.sh
 
 # Test files with potential secrets
 test_*.ts
 test_*.tsx
+test-*.sh
 
 # Python virtual environments
 .venv-analysis/
